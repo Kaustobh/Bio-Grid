@@ -1,13 +1,13 @@
 # Bio Grid — Med-Tech Patient Biometric Telemetry Dashboard
 
-[![GitHub Pages Deployment](https://github.com/Kaustobh/biogrid-healthtech-patient-dashboard/actions/workflows/deploy.yml/badge.svg)](https://github.com/Kaustobh/biogrid-healthtech-patient-dashboard/actions/workflows/deploy.yml)
+[![GitHub Pages Deployment](https://github.com/Kaustobh/Bio-Grid/actions/workflows/deploy.yml/badge.svg)](https://github.com/Kaustobh/Bio-Grid/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16.2-black?logo=next.js)](https://nextjs.org/)
 [![React 19](https://img.shields.io/badge/React-19.2-61DAFB?logo=react)](https://react.js.org/)
 [![TypeScript 5](https://img.shields.io/badge/TypeScript-5.0-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![Tailwind CSS v4](https://img.shields.io/badge/Tailwind_CSS-v4.0-06B6D4?logo=tailwindcss)](https://tailwindcss.com/)
 
-> **Live Demo**: [https://<username>.github.io/biogrid-healthtech-patient-dashboard/](https://<username>.github.io/biogrid-healthtech-patient-dashboard/)
+> **Live Demo**: [https://kaustobh.github.io/Bio-Grid/](https://kaustobh.github.io/Bio-Grid/)
 
 ---
 
@@ -50,8 +50,8 @@
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/<username>/biogrid-healthtech-patient-dashboard.git
-cd biogrid-healthtech-patient-dashboard
+git clone https://github.com/Kaustobh/Bio-Grid.git
+cd Bio-Grid
 ```
 
 ### 2. Install Dependencies
