@@ -10,6 +10,7 @@ const WS_BASE  = "ws://localhost:8000";
 const FALLBACK_USER = {
   id: "1a3b9774-075a-44ce-b9d1-a1fc88b2f55a",
   username: "operator.01",
+  created_at: "2026-08-20T00:00:00.000Z",
 };
 
 export default function BiometricProvider({ children }: { children: React.ReactNode }) {
