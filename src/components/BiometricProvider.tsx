@@ -2,10 +2,15 @@
 
 import React, { useEffect, useState } from "react";
 import { useBiometricStore, TelemetryData } from "@/store/useBiometricStore";
-import { Wifi, WifiOff, AlertTriangle } from "lucide-react";
+import { Wifi, WifiOff, AlertTriangle, ShieldCheck } from "lucide-react";
 
 const API_BASE = "http://localhost:8000";
 const WS_BASE  = "ws://localhost:8000";
+
+const FALLBACK_USER = {
+  id: "1a3b9774-075a-44ce-b9d1-a1fc88b2f55a",
+  username: "operator.01",
+};
 
 export default function BiometricProvider({ children }: { children: React.ReactNode }) {
   const { user, setUser, addTelemetryFrame, setMetabolicLog, wsConnected, setWsConnected } = useBiometricStore();
@@ -13,7 +18,32 @@ export default function BiometricProvider({ children }: { children: React.ReactN
   const [bootStatus, setBootStatus]     = useState("Connecting to services...");
   const [bootError, setBootError]       = useState("");
 
-  /* ── WebSocket Stream with Synthetic Fallback ── */
+  /* ── Synthetic Offline Telemetry Generator ── */
+  useEffect(() => {
+    if (!user || wsConnected) return;
+
+    // Stream realistic jittered telemetry when offline/unconnected
+    const interval = setInterval(() => {
+      const now = new Date();
+      const timestamp = now.toTimeString().split(" ")[0];
+
+      const syntheticFrame: TelemetryData = {
+        timestamp,
+        heart_rate: Math.floor(72 + (Math.random() * 8 - 4)),
+        spo2: parseFloat((98.2 + (Math.random() * 0.8 - 0.4)).toFixed(1)),
+        temperature: parseFloat((36.7 + (Math.random() * 0.3 - 0.15)).toFixed(2)),
+        stress_index: Math.floor(24 + (Math.random() * 6 - 3)),
+        glucose: Math.floor(104 + (Math.random() * 6 - 3)),
+        detox_clearance: Math.floor(88 + (Math.random() * 4 - 2)),
+      };
+
+      addTelemetryFrame(syntheticFrame);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [user, wsConnected, addTelemetryFrame]);
+
+  /* ── WebSocket Stream ── */
   useEffect(() => {
     if (!user) return;
     let ws: WebSocket;
@@ -22,7 +52,7 @@ export default function BiometricProvider({ children }: { children: React.ReactN
     const connectWS = () => {
       try {
         ws = new WebSocket(`${WS_BASE}/v1/biometrics/stream`);
-        ws.onopen = () => setWsConnected(true);
+        ws.onopen    = () => setWsConnected(true);
         ws.onmessage = (e) => {
           try {
             const data = JSON.parse(e.data);
@@ -30,7 +60,7 @@ export default function BiometricProvider({ children }: { children: React.ReactN
           } catch { /* ignore non-JSON */ }
         };
         ws.onclose = () => { setWsConnected(false); reconnectTimer = setTimeout(connectWS, 4000); };
-        ws.onerror = () => { setWsConnected(false); if (ws) ws.close(); };
+        ws.onerror = () => { ws.close(); };
       } catch {
         setWsConnected(false);
       }
@@ -40,32 +70,15 @@ export default function BiometricProvider({ children }: { children: React.ReactN
     return () => { if (ws) ws.close(); clearTimeout(reconnectTimer); };
   }, [user, addTelemetryFrame, setWsConnected]);
 
-  /* ── Fallback Synthetic Telemetry Generator when Offline ── */
-  useEffect(() => {
-    if (!user || wsConnected) return;
-
-    const fallbackInterval = setInterval(() => {
-      const syntheticFrame: TelemetryData = {
-        timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
-        heart_rate: Math.floor(72 + Math.random() * 8),
-        spo2: parseFloat((98.2 + Math.random() * 1.4).toFixed(1)),
-        temperature: parseFloat((36.7 + Math.random() * 0.4).toFixed(2)),
-        stress_index: Math.floor(22 + Math.random() * 12),
-        blood_glucose: Math.floor(94 + Math.random() * 10),
-        toxic_load: Math.floor(14 + Math.random() * 4),
-      };
-      addTelemetryFrame(syntheticFrame);
-    }, 1000);
-
-    return () => clearInterval(fallbackInterval);
-  }, [user, wsConnected, addTelemetryFrame]);
-
   /* ── Metabolic Log Fetch ── */
   useEffect(() => {
     if (!user) return;
     const fetchMetabolic = async () => {
       try {
-        const res = await fetch(`${API_BASE}/v1/users/${user.id}/metabolic`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
+        const res = await fetch(`${API_BASE}/v1/users/${user.id}/metabolic`, { signal: controller.signal });
+        clearTimeout(timeoutId);
         if (res.ok) {
           const data = await res.json();
           const glucose_arr = data.glucose_curve
@@ -74,7 +87,7 @@ export default function BiometricProvider({ children }: { children: React.ReactN
           setMetabolicLog({ calories: data.calories, hydration: parseFloat(data.hydration), protein: data.protein, carbs: data.carbs, fat: data.fat, glucose_curve: glucose_arr });
         }
       } catch {
-        // Fallback default metabolic log
+        // Fallback default metabolic values
         setMetabolicLog({ calories: 2150, hydration: 2.8, protein: 145, carbs: 210, fat: 65, glucose_curve: [95, 98, 102, 105, 108, 110, 105, 100, 98, 96, 95, 94] });
       }
     };
@@ -89,38 +102,37 @@ export default function BiometricProvider({ children }: { children: React.ReactN
     let interval: NodeJS.Timeout;
 
     const startBoot = async () => {
-      let userData = null;
+      let activeUser = FALLBACK_USER;
       try {
         setBootStatus("Connecting to services...");
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
         const res = await fetch(`${API_BASE}/v1/users`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username: "operator.01" }),
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
         if (res.ok) {
-          userData = await res.json();
+          activeUser = await res.json();
         }
       } catch {
-        /* Fall back smoothly to local session if backend server is unreachable */
-        userData = { id: "1a3b9774-075a-44ce-b9d1-a1fc88b2f55a", username: "operator.01" };
-      }
-
-      if (!userData) {
-        userData = { id: "1a3b9774-075a-44ce-b9d1-a1fc88b2f55a", username: "operator.01" };
+        // Quiet fallback to offline demo mode
       }
 
       interval = setInterval(() => {
         if (!isMounted) return;
-        progressVal += Math.floor(Math.random() * 10) + 8;
+        progressVal += Math.floor(Math.random() * 8) + 6;
         if (progressVal >= 100) {
           progressVal = 100;
           clearInterval(interval);
-          setTimeout(() => { if (isMounted) setUser(userData); }, 200);
+          setTimeout(() => { if (isMounted) setUser(activeUser); }, 300);
         }
         setBootProgress(progressVal);
-        if      (progressVal < 25) setBootStatus("Loading health profile...");
+        if      (progressVal < 25) setBootStatus("Loading your health profile...");
         else if (progressVal < 50) setBootStatus("Syncing metabolic data...");
-        else if (progressVal < 75) setBootStatus("Preparing telemetry deck...");
+        else if (progressVal < 75) setBootStatus("Preparing your dashboard...");
         else if (progressVal < 95) setBootStatus("Almost ready...");
         else                       setBootStatus("Welcome back.");
       }, 80);
@@ -130,17 +142,12 @@ export default function BiometricProvider({ children }: { children: React.ReactN
     return () => { isMounted = false; clearTimeout(startTimer); if (interval) clearInterval(interval); };
   }, [user, setUser]);
 
-  const launchDemoMode = () => {
-    setBootError("");
-    setUser({ id: "1a3b9774-075a-44ce-b9d1-a1fc88b2f55a", username: "operator.01" });
-  };
-
   /* ── Error Screen ── */
   if (bootError) {
     return (
       <div className="min-h-screen w-screen flex items-center justify-center p-6" style={{ background: "var(--bg-base)" }}>
         <div
-          className="w-full max-w-sm flex flex-col gap-5 rounded-2xl p-6"
+          className="w-full max-w-sm flex flex-col gap-5 rounded-2xl p-6 shadow-2xl"
           style={{ background: "var(--bg-card)", border: "1px solid rgba(239,68,68,0.2)" }}
         >
           <div className="flex items-center gap-3">
@@ -149,23 +156,27 @@ export default function BiometricProvider({ children }: { children: React.ReactN
             </div>
             <div>
               <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Connection Notice</p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>Backend Server Status</p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>Unable to reach live backend port 8000</p>
             </div>
           </div>
           <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-            {bootError} Click below to launch in Offline Telemetry Mode or retry connection.
+            {bootError} You can launch the Python backend (`python -m uvicorn backend.main:app --port 8000`) or proceed directly in offline demo mode.
           </p>
           <div className="flex flex-col gap-2">
             <button
-              onClick={launchDemoMode}
-              className="btn-primary w-full"
+              onClick={() => {
+                setBootError("");
+                setUser(FALLBACK_USER);
+              }}
+              className="btn-primary w-full flex items-center justify-center gap-2"
             >
-              Launch Offline Demo Mode
+              <ShieldCheck size={14} />
+              Continue in Offline Demo Mode
             </button>
             <button
               onClick={() => window.location.reload()}
-              className="w-full text-xs py-2 rounded-lg transition-colors text-neutral-400 hover:text-white"
-              style={{ border: "1px solid var(--border-default)" }}
+              className="w-full py-2 text-xs rounded-xl transition-all"
+              style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border-default)" }}
             >
               Retry Connection
             </button>
