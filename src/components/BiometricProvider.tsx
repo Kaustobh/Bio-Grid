@@ -30,11 +30,19 @@ export default function BiometricProvider({ children }: { children: React.ReactN
       const syntheticFrame: TelemetryData = {
         timestamp,
         heart_rate: Math.floor(72 + (Math.random() * 8 - 4)),
-        spo2: parseFloat((98.2 + (Math.random() * 0.8 - 0.4)).toFixed(1)),
-        temperature: parseFloat((36.7 + (Math.random() * 0.3 - 0.15)).toFixed(2)),
+        blood_oxygen: parseFloat((98.2 + (Math.random() * 0.8 - 0.4)).toFixed(1)),
+        core_temperature: parseFloat((36.7 + (Math.random() * 0.3 - 0.15)).toFixed(2)),
         stress_index: Math.floor(24 + (Math.random() * 6 - 3)),
-        glucose: Math.floor(104 + (Math.random() * 6 - 3)),
-        detox_clearance: Math.floor(88 + (Math.random() * 4 - 2)),
+        glucose_level: Math.floor(104 + (Math.random() * 6 - 3)),
+        toxic_load: Math.floor(88 + (Math.random() * 4 - 2)),
+        organ_strain: {
+          brain: 12,
+          heart: 18,
+          lungs: 14,
+          liver: 22,
+          kidneys: 15,
+          stomach: 10,
+        },
       };
 
       addTelemetryFrame(syntheticFrame);
